@@ -139,30 +139,47 @@
 
 ### 安装步骤
 
+**⚡ 自动化安装（推荐）**
+
+1. **克隆并自动设置**
+   ```bash
+   git clone <repository-url>
+   cd qwen3-knowledge-distillation
+   ./setup.sh
+   ```
+
+安装脚本会自动：
+- ✅ 检查Python版本兼容性
+- 📦 创建虚拟环境（`venv`）
+- ⬆️ 升级pip到最新版本
+- 📚 安装所有必需的依赖包
+- 🔍 验证安装是否成功
+
+**🔧 手动安装**
+
+如果你更喜欢手动安装：
+
 1. **克隆项目**
    ```bash
    git clone <repository-url>
    cd qwen3-knowledge-distillation
    ```
 
-2. **创建虚拟环境**
+2. **⚠️ 重要：创建虚拟环境**
    ```bash
-   python -m venv l2s
-   source l2s/bin/activate  # Linux/Mac
+   python -m venv venv
+   source venv/bin/activate  # Linux/Mac
    # 或者
-   l2s\Scripts\activate     # Windows
+   venv\Scripts\activate     # Windows
    ```
 
 3. **安装依赖**
    ```bash
-   pip install torch transformers accelerate peft
-   pip install datasets rich tqdm numpy pandas
+   pip install -r requirements.txt
    ```
 
-4. **验证安装**
-   ```bash
-   python -c "from src.distillation.kd import run_kd_pipeline; print('✅ 安装成功')"
-   ```
+
+**💡 务必使用虚拟环境**：本项目需要特定版本的ML库。使用虚拟环境可以防止与你的系统Python包发生冲突。
 
 ### 数据流程和要求
 
@@ -382,7 +399,7 @@ python scripts/run_improved_kd.py --batch_size 1 --gradient_accumulation_steps 6
 export PYTHONPATH=$PYTHONPATH:$(pwd)
 
 # 激活虚拟环境
-source l2s/bin/activate
+source venv/bin/activate
 ```
 
 **3. 数据路径问题**
