@@ -391,23 +391,6 @@ source l2s/bin/activate
 ls -la outputs/experiment/qwen3_30b_to_8b_ultrabatch_512/sft/
 ```
 
-## 🤝 贡献
-
-欢迎贡献！请查看我们的[贡献指南](CONTRIBUTING.md)了解详细信息。
-
-## 📄 引用
-
-如果你在研究中使用了这个工作，请引用：
-
-```bibtex
-@misc{qwen3-knowledge-distillation,
-  title={Qwen3-30B to 8B Knowledge Distillation: A Complete Implementation},
-  year={2024},
-  publisher={GitHub},
-  url={https://github.com/your-username/qwen3-knowledge-distillation}
-}
-```
-
 ## 📜 许可证
 
 本项目采用 Apache License 2.0 许可证 - 请查看 [LICENSE](LICENSE) 文件了解详情。

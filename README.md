@@ -554,38 +554,6 @@ results = run_evaluation(
 )
 ```
 
-## 🤝 Contributing
-
-We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
-
-### Development Setup
-
-```bash
-# Install development dependencies
-pip install -e .
-pip install pytest black isort flake8
-
-# Run tests
-pytest tests/
-
-# Format code
-black . && isort . && flake8 .
-```
-
-## 📄 Citation
-
-If you use this work in your research, please cite:
-
-```bibtex
-@misc{qwen3-knowledge-distillation,
-  title={Qwen3-30B to 8B Knowledge Distillation: A Complete Implementation},
-  author={Your Name},
-  year={2024},
-  publisher={GitHub},
-  url={https://github.com/your-username/qwen3-knowledge-distillation}
-}
-```
-
 ## 📜 License
 
 This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
@@ -596,12 +564,6 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 - **Hugging Face** for transformers and PEFT libraries
 - **PyTorch Team** for the deep learning framework
 - **Community contributors** for testing and feedback
-
-## 📞 Support
-
-- **Issues**: [GitHub Issues](https://github.com/your-username/qwen3-knowledge-distillation/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/your-username/qwen3-knowledge-distillation/discussions)
-- **Documentation**: See `learn.md` for detailed technical documentation
 
 ---
 
