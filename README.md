@@ -171,13 +171,13 @@ Test the distilled model immediately with our pre-trained checkpoint:
 
 ```bash
 # Quick test (10 samples, ~3 minutes)
-./run_tests.sh quick
+./run_kd_inference_test.sh quick
 
 # Medium test (50 samples, ~15 minutes)
-./run_tests.sh medium
+./run_kd_inference_test.sh medium
 
 # Full evaluation (350 samples, ~30 minutes)
-./run_tests.sh full
+./run_kd_inference_test.sh full
 ```
 
 ## 📁 Project Structure
@@ -205,7 +205,7 @@ Test the distilled model immediately with our pre-trained checkpoint:
 │       ├── kd_config.json                # Training configuration
 │       └── kd_results.json               # Training metrics
 ├── test_kd_inference_v2.py        # Inference comparison tool
-├── run_tests.sh                   # Test runner script
+├── run_kd_inference_test.sh       # KD inference test runner script
 └── learn.md                       # Detailed technical documentation
 ```
 

@@ -170,13 +170,13 @@
 
 ```bash
 # 快速测试（10个样本，约3分钟）
-./run_tests.sh quick
+./run_kd_inference_test.sh quick
 
 # 中等测试（50个样本，约15分钟）  
-./run_tests.sh medium
+./run_kd_inference_test.sh medium
 
 # 完整评估（350个样本，约30分钟）
-./run_tests.sh full
+./run_kd_inference_test.sh full
 ```
 
 ## 📁 项目结构
@@ -204,7 +204,7 @@
 │       ├── kd_config.json                # 训练配置
 │       └── kd_results.json               # 训练指标
 ├── test_kd_inference_v2.py        # 推理对比工具
-├── run_tests.sh                   # 测试运行脚本
+├── run_kd_inference_test.sh       # KD推理测试运行脚本
 └── learn.md                       # 详细技术文档
 ```
 
