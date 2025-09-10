@@ -159,10 +159,31 @@
    pip install datasets rich tqdm numpy pandas
    ```
 
-4. **验证安装**
+4. **准备训练数据集**
+   ```bash
+   # 生成初始训练数据（GSM8K, HumanEval, AIOps合成数据）
+   python scripts/download_datasets.py
+   
+   # 这将创建：
+   # - data/processed/train_dataset.jsonl (~3K样本)
+   # - data/processed/eval_dataset.jsonl (~350样本)
+   ```
+
+5. **验证安装**
    ```bash
    python -c "from src.distillation.kd import run_kd_pipeline; print('✅ 安装成功')"
    ```
+
+### 数据要求
+
+**训练数据来源：**
+- **GSM8K**: 数学推理问题 (2,000个样本)
+- **HumanEval**: Python编程挑战 (164个样本)
+- **AIOps合成**: 系统故障排查场景 (1,000个样本)
+
+**总数据集：** 约3,164个训练样本 + 350个评估样本 (~6MB)
+
+**注意：** 训练数据文件由于大小限制未包含在仓库中，需要本地生成。请运行上述数据准备脚本来创建它们。
 
 ### 快速推理测试
 

@@ -160,10 +160,31 @@ This implementation shows the following outcomes (your results may vary):
    pip install datasets rich tqdm numpy pandas
    ```
 
-4. **Verify installation**
+4. **Prepare training datasets**
+   ```bash
+   # Generate initial training data (GSM8K, HumanEval, AIOps synthetic)
+   python scripts/download_datasets.py
+   
+   # This creates:
+   # - data/processed/train_dataset.jsonl (~3K samples)  
+   # - data/processed/eval_dataset.jsonl (~350 samples)
+   ```
+
+5. **Verify installation**
    ```bash
    python -c "from src.distillation.kd import run_kd_pipeline; print('✅ Installation successful')"
    ```
+
+### Data Requirements
+
+**Training Data Sources:**
+- **GSM8K**: Mathematical reasoning problems (2,000 samples)
+- **HumanEval**: Python coding challenges (164 samples)  
+- **AIOps Synthetic**: System troubleshooting scenarios (1,000 samples)
+
+**Total Dataset:** ~3,164 training samples + 350 evaluation samples (~6MB)
+
+**Note:** Training data files are generated locally and not included in the repository due to size constraints. Run the data preparation script above to create them.
 
 ### Quick Inference Test
 
