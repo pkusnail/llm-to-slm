@@ -240,22 +240,42 @@ class KDTrainer(Trainer):
         # 确保模型在训练模式且梯度启用
         model.train()
         
-        # 准备输入数据
-        model_inputs = {
-            k: v for k, v in inputs.items() 
-            if k in ['input_ids', 'attention_mask', 'labels']
-        }
+        # 准备输入数据并确保设备一致性
+        model_inputs = {}
+        student_device = next(model.parameters()).device
+        
+        for k, v in inputs.items():
+            if k in ['input_ids', 'attention_mask', 'labels']:
+                if hasattr(v, 'to'):
+                    model_inputs[k] = v.to(student_device)
+                else:
+                    model_inputs[k] = v
+        
+        print(f"DEBUG: Student device={student_device}, input_ids device={model_inputs['input_ids'].device}")
         
         # 学生前向传播
         student_outputs = model(**model_inputs)
         student_logits = student_outputs.logits
         
-        # 教师前向传播
-        with torch.no_grad():
-            teacher_outputs = self.teacher_model(**model_inputs)
-            teacher_logits = teacher_outputs.logits
+        # 教师前向传播 - 确保输入在正确设备上
+        teacher_device = next(self.teacher_model.parameters()).device
+        teacher_inputs = {}
+        for k, v in model_inputs.items():
+            if hasattr(v, 'to'):
+                teacher_inputs[k] = v.to(teacher_device)
+            else:
+                teacher_inputs[k] = v
         
-        # 计算KD损失
+        print(f"DEBUG: Teacher device={teacher_device}, input_ids device={teacher_inputs['input_ids'].device}")
+        
+        with torch.no_grad():
+            teacher_outputs = self.teacher_model(**teacher_inputs)
+            teacher_logits = teacher_outputs.logits
+            
+        # 将teacher logits移动到student设备进行损失计算
+        teacher_logits = teacher_logits.to(student_device)
+        
+        # 计算KD损失 - 确保所有输入在同一设备
         labels = model_inputs.get('labels')
         attention_mask = model_inputs.get('attention_mask')
         
@@ -265,6 +285,12 @@ class KDTrainer(Trainer):
             labels=labels,
             attention_mask=attention_mask
         )
+        
+        # 关键修复：Trainer期望loss在cuda:0，不是student设备
+        expected_device = torch.device("cuda:0")
+        if loss.device != expected_device:
+            loss = loss.to(expected_device)
+            print(f"DEBUG: Moved loss to {expected_device} (Trainer requirement)")
         
         # 验证损失张量需要梯度
         if not loss.requires_grad:
