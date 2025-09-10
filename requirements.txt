@@ -1,0 +1,35 @@
+# Qwen3 Knowledge Distillation Requirements
+# 
+# IMPORTANT: Install in a virtual environment:
+#   python -m venv venv
+#   source venv/bin/activate  # Linux/Mac
+#   # or venv\Scripts\activate  # Windows
+#   pip install -r requirements.txt
+#
+# Core ML libraries
+torch>=2.0.0
+transformers>=4.35.0
+accelerate>=0.20.0
+peft>=0.6.0
+trl>=0.7.0
+
+# Data handling
+datasets>=2.14.0
+numpy>=1.24.0
+
+# Visualization and progress
+matplotlib>=3.7.0
+seaborn>=0.12.0
+rich>=13.0.0
+
+# Utilities
+wandb>=0.15.0
+jsonlines>=3.1.0
+
+# Development
+pytest>=7.0.0
+black>=23.0.0
+flake8>=6.0.0
+
+# Optional: For better performance
+bitsandbytes>=0.41.0
