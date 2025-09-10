@@ -34,6 +34,8 @@ def main():
     parser.add_argument("--alpha", type=float, default=0.8, help="High KL weight (default: 0.8)")
     parser.add_argument("--max_steps", type=int, default=100, help="Shorter training (default: 100)")
     parser.add_argument("--output_dir", default="outputs", help="Output directory")
+    parser.add_argument("--train_data", type=str, default=None, help="Path to training data")
+    parser.add_argument("--eval_data", type=str, default=None, help="Path to evaluation data")
     
     args = parser.parse_args()
     
@@ -85,12 +87,25 @@ def main():
     logger.info(f"  Max Steps: {args.max_steps} (shorter - was ~200)")
     logger.info(f"  Grad Accumulation: 64 (smoother - was 16)")
     
-    # Verify data
-    train_file = Path("outputs/experiment/qwen3_30b_to_8b_ultrabatch_512/sft/sft_train_data_clean.jsonl")
-    eval_file = Path("outputs/experiment/qwen3_30b_to_8b_ultrabatch_512/sft/sft_eval_data_clean.jsonl")
+    # Use provided data paths or default to existing teacher-generated data
+    if args.train_data:
+        train_file = Path(args.train_data)
+    else:
+        train_file = Path("outputs/experiment/qwen3_30b_to_8b_ultrabatch_512/sft/sft_train_data_clean.jsonl")
     
-    if not train_file.exists() or not eval_file.exists():
-        logger.error("Data files not found!")
+    if args.eval_data:
+        eval_file = Path(args.eval_data)
+    else:
+        eval_file = Path("outputs/experiment/qwen3_30b_to_8b_ultrabatch_512/sft/sft_eval_data_clean.jsonl")
+    
+    if not train_file.exists():
+        logger.error(f"Training data file not found: {train_file}")
+        logger.error("Please run: python scripts/prepare_training_data.py")
+        return
+    
+    if not eval_file.exists():
+        logger.error(f"Evaluation data file not found: {eval_file}")
+        logger.error("Please run: python scripts/prepare_training_data.py")
         return
     
     logger.info(f"\n📁 Data verified:")
@@ -101,8 +116,8 @@ def main():
     
     try:
         results = run_kd_pipeline(
-            teacher_model_name="Qwen/Qwen3-30B-A3B-Instruct-2507",
-            student_model_name="Qwen/Qwen3-8B",
+            teacher_model_path="Qwen/Qwen3-30B-A3B-Instruct-2507",
+            student_model_path="Qwen/Qwen3-8B",
             train_data_path=str(train_file),
             eval_data_path=str(eval_file),
             output_dir=str(output_dir),

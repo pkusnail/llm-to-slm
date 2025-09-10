@@ -159,31 +159,71 @@
    pip install datasets rich tqdm numpy pandas
    ```
 
-4. **准备训练数据集**
-   ```bash
-   # 生成初始训练数据（GSM8K, HumanEval, AIOps合成数据）
-   python scripts/download_datasets.py
-   
-   # 这将创建：
-   # - data/processed/train_dataset.jsonl (~3K样本)
-   # - data/processed/eval_dataset.jsonl (~350样本)
-   ```
-
-5. **验证安装**
+4. **验证安装**
    ```bash
    python -c "from src.distillation.kd import run_kd_pipeline; print('✅ 安装成功')"
    ```
 
-### 数据要求
+### 数据流程和要求
 
-**训练数据来源：**
+本项目包含**预生成的教师数据**可供立即使用，或者您可以创建自己的定制数据集。
+
+#### 方案1：使用预生成数据（推荐）
+
+仓库包含已准备好的教师生成训练数据，可直接用于KD训练：
+- **位置**: `outputs/experiment/qwen3_30b_to_8b_ultrabatch_512/sft/`
+- **训练数据**: `sft_train_data_clean.jsonl` (5.2MB, 3,164个样本)
+- **评估数据**: `sft_eval_data_clean.jsonl` (0.6MB, 评估集)
+- **内容**: 每个样本包含 `{prompt, original_answer, teacher_response}`
+
+**数据来源：**
 - **GSM8K**: 数学推理问题 (2,000个样本)
 - **HumanEval**: Python编程挑战 (164个样本)
 - **AIOps合成**: 系统故障排查场景 (1,000个样本)
 
-**总数据集：** 约3,164个训练样本 + 350个评估样本 (~6MB)
+#### 方案2：生成定制数据
 
-**注意：** 训练数据文件由于大小限制未包含在仓库中，需要本地生成。请运行上述数据准备脚本来创建它们。
+如果您想创建自己的定制数据集，请遵循以下详细过程：
+
+**步骤1：下载和准备初始数据**
+```bash
+# 下载数据集并创建初始指令数据
+python scripts/prepare_training_data.py \
+    --gsm8k_samples 2000 \
+    --humaneval_samples 164 \
+    --aiops_samples 1000 \
+    --output_dir outputs/experiment/my_custom_data
+
+# 这将创建格式为 {prompt, original_answer} 的初始指令数据
+# 输出文件：
+# - outputs/experiment/my_custom_data/sft_train_data_clean.jsonl
+# - outputs/experiment/my_custom_data/sft_eval_data_clean.jsonl
+```
+
+**prepare_training_data.py 关键参数：**
+- `--gsm8k_samples`: GSM8K数学问题数量 (默认: 2000)
+- `--humaneval_samples`: HumanEval编程任务数量 (默认: 164)
+- `--aiops_samples`: 合成AIOps场景数量 (默认: 1000)  
+- `--output_dir`: 保存准备数据的位置 (默认: outputs/experiment/prepared_data)
+
+**步骤2：使用您的定制数据进行KD训练**
+```bash
+# 使用您的定制数据进行训练
+python scripts/run_improved_kd.py \
+    --train_data outputs/experiment/my_custom_data/sft_train_data_clean.jsonl \
+    --eval_data outputs/experiment/my_custom_data/sft_eval_data_clean.jsonl \
+    --learning_rate 2e-5 \
+    --temperature 2.5 \
+    --alpha 0.8 \
+    --max_steps 100 \
+    --output_dir outputs/experiment/my_kd_experiment
+```
+
+**重要说明：**
+- `prepare_training_data.py` 脚本仅生成**初始指令数据**
+- 完整的KD训练需要包含**教师回答**的数据（如预生成数据）
+- 准备脚本主要用于创建定制的指令数据集
+- **推荐**: 使用方案1（预生成数据）进行即时KD训练
 
 ### 快速推理测试
 

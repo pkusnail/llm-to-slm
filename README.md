@@ -160,31 +160,71 @@ This implementation shows the following outcomes (your results may vary):
    pip install datasets rich tqdm numpy pandas
    ```
 
-4. **Prepare training datasets**
-   ```bash
-   # Generate initial training data (GSM8K, HumanEval, AIOps synthetic)
-   python scripts/download_datasets.py
-   
-   # This creates:
-   # - data/processed/train_dataset.jsonl (~3K samples)  
-   # - data/processed/eval_dataset.jsonl (~350 samples)
-   ```
-
-5. **Verify installation**
+4. **Verify installation**
    ```bash
    python -c "from src.distillation.kd import run_kd_pipeline; print('✅ Installation successful')"
    ```
 
-### Data Requirements
+### Data Flow and Requirements
 
-**Training Data Sources:**
+This project includes **pre-generated teacher data** for immediate use, or you can create your own custom dataset.
+
+#### Option 1: Use Pre-generated Data (Recommended)
+
+The repository includes teacher-generated training data ready for KD training:
+- **Location**: `outputs/experiment/qwen3_30b_to_8b_ultrabatch_512/sft/`
+- **Training Data**: `sft_train_data_clean.jsonl` (5.2MB, 3,164 samples)
+- **Evaluation Data**: `sft_eval_data_clean.jsonl` (0.6MB, evaluation set)
+- **Content**: Each sample contains `{prompt, original_answer, teacher_response}`
+
+**Data Sources:**
 - **GSM8K**: Mathematical reasoning problems (2,000 samples)
 - **HumanEval**: Python coding challenges (164 samples)  
 - **AIOps Synthetic**: System troubleshooting scenarios (1,000 samples)
 
-**Total Dataset:** ~3,164 training samples + 350 evaluation samples (~6MB)
+#### Option 2: Generate Custom Data
 
-**Note:** Training data files are generated locally and not included in the repository due to size constraints. Run the data preparation script above to create them.
+If you want to create your own custom dataset, follow this detailed process:
+
+**Step 1: Download and Prepare Initial Data**
+```bash
+# Download datasets and create initial instruction data
+python scripts/prepare_training_data.py \
+    --gsm8k_samples 2000 \
+    --humaneval_samples 164 \
+    --aiops_samples 1000 \
+    --output_dir outputs/experiment/my_custom_data
+
+# This creates initial instruction data with format: {prompt, original_answer}
+# Output files:
+# - outputs/experiment/my_custom_data/sft_train_data_clean.jsonl
+# - outputs/experiment/my_custom_data/sft_eval_data_clean.jsonl
+```
+
+**Key Parameters for prepare_training_data.py:**
+- `--gsm8k_samples`: Number of GSM8K math problems (default: 2000)
+- `--humaneval_samples`: Number of HumanEval coding tasks (default: 164) 
+- `--aiops_samples`: Number of synthetic AIOps scenarios (default: 1000)
+- `--output_dir`: Where to save the prepared data (default: outputs/experiment/prepared_data)
+
+**Step 2: Use Your Custom Data for KD Training**
+```bash
+# Train with your custom data
+python scripts/run_improved_kd.py \
+    --train_data outputs/experiment/my_custom_data/sft_train_data_clean.jsonl \
+    --eval_data outputs/experiment/my_custom_data/sft_eval_data_clean.jsonl \
+    --learning_rate 2e-5 \
+    --temperature 2.5 \
+    --alpha 0.8 \
+    --max_steps 100 \
+    --output_dir outputs/experiment/my_kd_experiment
+```
+
+**Important Notes:**
+- The `prepare_training_data.py` script generates **initial instruction data** only
+- For full KD training, you need data with **teacher responses** (like the pre-generated data)
+- The prepare script is mainly for creating custom instruction datasets
+- **Recommended**: Use Option 1 (pre-generated data) for immediate KD training
 
 ### Quick Inference Test
 
@@ -254,10 +294,21 @@ results = run_sft_pipeline(
 
 ### Stage 2: Knowledge Distillation Training
 
-Train the student model using the teacher-generated data:
+Train the student model using the pre-generated teacher data:
 
 ```bash
+# Using default pre-generated data (recommended)
 python scripts/run_improved_kd.py \
+    --learning_rate 2e-5 \
+    --temperature 2.5 \
+    --alpha 0.8 \
+    --max_steps 100 \
+    --output_dir outputs/experiment/my_kd_experiment
+
+# Or specify custom data paths
+python scripts/run_improved_kd.py \
+    --train_data path/to/your/sft_train_data_clean.jsonl \
+    --eval_data path/to/your/sft_eval_data_clean.jsonl \
     --learning_rate 2e-5 \
     --temperature 2.5 \
     --alpha 0.8 \
@@ -266,6 +317,8 @@ python scripts/run_improved_kd.py \
 ```
 
 **Key Parameters**:
+- `--train_data`: Path to training data (optional, uses pre-generated data by default)
+- `--eval_data`: Path to evaluation data (optional, uses pre-generated data by default)
 - `--learning_rate`: Conservative learning rate (2e-5)
 - `--temperature`: Distillation temperature (2.5)
 - `--alpha`: KL divergence weight (0.8)
