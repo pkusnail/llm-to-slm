@@ -140,30 +140,46 @@ This implementation shows the following outcomes (your results may vary):
 
 ### Installation
 
+**⚡ Automated Setup (Recommended)**
+
+1. **Clone and setup automatically**
+   ```bash
+   git clone <repository-url>
+   cd qwen3-knowledge-distillation
+   ./setup.sh
+   ```
+
+The setup script will:
+- ✅ Check Python version compatibility  
+- 📦 Create virtual environment (`venv`)
+- ⬆️ Upgrade pip to latest version
+- 📚 Install all required dependencies
+- 🔍 Verify installation success
+
+**🔧 Manual Setup**
+
+If you prefer manual installation:
+
 1. **Clone the repository**
    ```bash
    git clone <repository-url>
    cd qwen3-knowledge-distillation
    ```
 
-2. **Create virtual environment**
+2. **⚠️ IMPORTANT: Create virtual environment** 
    ```bash
-   python -m venv l2s
-   source l2s/bin/activate  # Linux/Mac
+   python -m venv venv
+   source venv/bin/activate  # Linux/Mac
    # or
-   l2s\Scripts\activate     # Windows
+   venv\Scripts\activate     # Windows
    ```
 
 3. **Install dependencies**
    ```bash
-   pip install torch transformers accelerate peft
-   pip install datasets rich tqdm numpy pandas
+   pip install -r requirements.txt
    ```
 
-4. **Verify installation**
-   ```bash
-   python -c "from src.distillation.kd import run_kd_pipeline; print('✅ Installation successful')"
-   ```
+**💡 Always Use Virtual Environment**: This project requires specific versions of ML libraries. Using a virtual environment prevents conflicts with your system Python packages.
 
 ### Data Flow and Requirements
 
