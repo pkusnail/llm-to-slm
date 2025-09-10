@@ -21,8 +21,8 @@ from transformers import (
 from accelerate import Accelerator
 import numpy as np
 
-from distillation.base import BaseDistiller, DistillationDataset, collate_fn, KnowledgeDistillationLoss
-from utils.common import load_jsonl, setup_logging, set_seed, cleanup_cache
+from .base import BaseDistiller, DistillationDataset, collate_fn, KnowledgeDistillationLoss
+from ..utils.common import load_jsonl, setup_logging, set_seed, cleanup_cache
 
 logger = logging.getLogger(__name__)
 
