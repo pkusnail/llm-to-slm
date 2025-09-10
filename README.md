@@ -477,7 +477,7 @@ python scripts/run_improved_kd.py --batch_size 1 --gradient_accumulation_steps 6
 export PYTHONPATH=$PYTHONPATH:$(pwd)
 
 # Activate virtual environment
-source l2s/bin/activate
+source venv/bin/activate
 ```
 
 **3. Model Loading Issues**

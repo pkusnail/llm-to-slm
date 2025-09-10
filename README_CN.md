@@ -399,7 +399,7 @@ python scripts/run_improved_kd.py --batch_size 1 --gradient_accumulation_steps 6
 export PYTHONPATH=$PYTHONPATH:$(pwd)
 
 # 激活虚拟环境
-source l2s/bin/activate
+source venv/bin/activate
 ```
 
 **3. 数据路径问题**
