@@ -155,12 +155,19 @@ class BaseDistiller(ABC):
 
 
 class KnowledgeDistillationLoss(nn.Module):
-    """知识蒸馏损失函数"""
+    """知识蒸馏损失函数
+    
+    Args:
+        temperature: 软化概率分布的温度参数，建议2.0-5.0
+        alpha: KL损失的权重，建议0.7-0.8
+               当alpha=0.8时: loss = 0.2*CE_loss + 0.8*KL_loss
+               即80%学习teacher分布，20%保持accuracy
+    """
     
     def __init__(self, temperature: float = 2.0, alpha: float = 0.5):
         super().__init__()
         self.temperature = temperature
-        self.alpha = alpha
+        self.alpha = alpha  # KL损失权重，建议设置为0.7-0.8
         self.kl_div = nn.KLDivLoss(reduction="batchmean")
         self.ce_loss = nn.CrossEntropyLoss()
     
@@ -209,8 +216,9 @@ class KnowledgeDistillationLoss(nn.Module):
         # 温度平方补偿
         kl_loss = kl_loss * (self.temperature ** 2)
         
-        # 总损失
-        total_loss = self.alpha * ce_loss + (1 - self.alpha) * kl_loss
+        # 总损失 - 修复权重：让KL Loss占主导地位
+        # alpha=0.8时: total_loss = 0.2 * ce_loss + 0.8 * kl_loss
+        total_loss = (1 - self.alpha) * ce_loss + self.alpha * kl_loss
         
         loss_dict = {
             "total_loss": total_loss.item(),
