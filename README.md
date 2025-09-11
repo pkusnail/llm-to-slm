@@ -342,17 +342,273 @@ python scripts/run_improved_kd.py \
 
 ### Stage 3: Evaluation and Comparison
 
-Compare the performance of original vs distilled models:
+Compare the performance of original vs distilled models using our comprehensive evaluation system:
+
+## 📊 Model Evaluation Guide
+
+### Overview
+
+Our evaluation system provides multiple methods to assess KD training effectiveness:
+1. **GPU-Optimized Inference Testing** - Direct comparison between original and KD models
+2. **Traditional Perplexity Evaluation** - Statistical analysis of model performance  
+3. **Multi-Temperature Analysis** - Understanding knowledge transfer effectiveness
+
+### Method 1: Quick Evaluation (Recommended)
+
+Use the automated evaluation script for immediate results:
 
 ```bash
-# Quick comparison test
-python test_kd_inference_v2.py --mode quick --temperature 0.7
+# Quick start - runs all evaluation modes
+./scripts/run_evaluation.sh
 
-# Detailed evaluation
-python scripts/evaluate_distillation.py \
-    --model_path outputs/experiment/gpu_optimized_kd_20250910_170252/final_model \
-    --output_dir outputs/evaluation
+# Manual execution with full parameter control
+python test_kd_inference_v2.py \
+  --mode quick \
+  --temperature 1.2 \
+  --student_model "Qwen/Qwen3-8B" \
+  --kd_model_path "outputs/experiment/optimized_kd_fixed/final_model" \
+  --eval_data "data/cloud_aiops/cloud_aiops_eval_data.jsonl" \
+  --max_length 1536 \
+  --original_gpu_ids 0 1 2 3 \
+  --kd_gpu_ids 4 5 6 7 \
+  --quick_batch_size 8
 ```
+
+### Method 2: Traditional Perplexity Evaluation
+
+For statistical analysis and research purposes:
+
+```bash
+python scripts/evaluate_distillation.py \
+  --model_path "outputs/experiment/optimized_kd_fixed/final_model" \
+  --teacher_model "Qwen/Qwen3-30B-A3B-Instruct-2507" \
+  --student_base "Qwen/Qwen3-8B" \
+  --eval_data "data/cloud_aiops/cloud_aiops_eval_data.jsonl" \
+  --sample_size 50 \
+  --max_length 1536 \
+  --max_new_tokens 512 \
+  --temperature 1.2
+```
+
+### Evaluation Parameters Explained
+
+#### Critical Parameters
+
+| Parameter | Purpose | Default | Impact |
+|-----------|---------|---------|--------|
+| `--temperature` | **Inference randomness** | 1.2 | **1.2 best showcases KD effects** |
+| `--max_length` | **Sequence length** | 1536 | **Must match training config** |
+| `--kd_model_path` | **KD model location** | Required | **Path to LoRA adapters** |
+| `--eval_data` | **Test dataset** | Required | **Use domain-specific data** |
+
+#### GPU Allocation Parameters
+
+| Parameter | Purpose | Default | Notes |
+|-----------|---------|---------|-------|
+| `--original_gpu_ids` | Original model GPUs | [0,1,2,3] | Adjust based on hardware |
+| `--kd_gpu_ids` | KD model GPUs | [4,5,6,7] | Prevents memory conflicts |
+| `--quick_batch_size` | Quick mode batch size | 8 | Scale with GPU count |
+| `--medium_batch_size` | Medium mode batch size | 16 | For 50-sample tests |
+| `--full_batch_size` | Full mode batch size | 24 | For complete datasets |
+
+#### Temperature Parameter Deep Dive
+
+**🌡️ Understanding Temperature Settings**
+
+Our evaluation uses **inference temperature** (different from training temperature):
+
+- **Training Temperature (8.0)**: Used during KD for logits softening - **DO NOT CHANGE**
+- **Inference Temperature**: Controls generation randomness - **CONFIGURABLE**
+
+| Temperature | Effect | Use Case |
+|-------------|--------|----------|
+| **0.1** | Conservative, deterministic | May **mask KD differences** |
+| **0.7** | Balanced responses | Standard evaluation |
+| **1.2** | Creative, diverse | **BEST for showing KD effects** ⭐ |
+
+**Why Temperature=1.2 is Optimal:**
+
+Based on our experimental validation (`learn.md`):
+- **Temperature=0.7**: KD model 738 chars vs Original 954 chars (-216, efficiency gain)
+- **Temperature=1.2**: KD model 1905 chars, shows Teacher-style explanations (+1111, style transfer)
+
+### Evaluation Modes
+
+#### Quick Mode (Recommended for Development)
+```bash
+python test_kd_inference_v2.py --mode quick --temperature 1.2 \
+  --kd_model_path "your/model/path" \
+  --eval_data "your/eval/data.jsonl"
+```
+- **Samples**: 10 representative examples
+- **Time**: ~3 minutes  
+- **Purpose**: Rapid validation of KD effects
+
+#### Medium Mode (Balanced Analysis)
+```bash
+python test_kd_inference_v2.py --mode medium --temperature 1.2 \
+  --kd_model_path "your/model/path" \
+  --eval_data "your/eval/data.jsonl"
+```
+- **Samples**: 50 random samples
+- **Time**: ~15 minutes
+- **Purpose**: Statistical significance
+
+#### Full Mode (Complete Analysis) 
+```bash
+python test_kd_inference_v2.py --mode full --temperature 1.2 \
+  --kd_model_path "your/model/path" \
+  --eval_data "your/eval/data.jsonl"
+```
+- **Samples**: All available samples
+- **Time**: ~30 minutes
+- **Purpose**: Comprehensive evaluation
+
+### Expected Results Structure
+
+#### Output Files
+
+1. **Comparison Results**: `kd_comparison_[mode]_[timestamp].json`
+   ```json
+   {
+     "config": {
+       "mode": "quick",
+       "sample_count": 10,
+       "batch_size": 8,
+       "temperature": 1.2
+     },
+     "timing": {
+       "original_time": 45.2,
+       "kd_time": 43.8
+     },
+     "results": [
+       {
+         "id": "sample_001",
+         "domain": "aiops",
+         "prompt": "How to troubleshoot high memory usage?",
+         "original_response": "Check processes with top command...",
+         "kd_response": "To troubleshoot high memory usage systematically...",
+         "original_time": 4.5,
+         "kd_time": 4.3
+       }
+     ]
+   }
+   ```
+
+2. **Perplexity Results**: `evaluation_results_[timestamp].json`
+   ```json
+   {
+     "results": {
+       "student": {
+         "perplexity": 12.45,
+         "loss": 2.52
+       },
+       "baseline": {
+         "perplexity": 15.23,
+         "loss": 2.73
+       },
+       "teacher": {
+         "perplexity": 8.92,
+         "loss": 2.19
+       }
+     },
+     "improvements": {
+       "perplexity_improvement_pct": 18.25,
+       "loss_improvement_pct": 7.69
+     }
+   }
+   ```
+
+### Reference Performance Benchmarks
+
+#### Expected Score Ranges (AIOps Domain)
+
+| Metric | Original 8B | KD-Trained 8B | Teacher 30B | Target |
+|--------|-------------|---------------|-------------|--------|
+| **Perplexity** | 15-18 | 12-15 | 8-12 | **Lower is better** |
+| **Response Length** | 200-500 chars | 400-800 chars | 600-1200 chars | **Longer indicates detail** |
+| **Technical Terms** | 2-4 per response | 4-6 per response | 6-8 per response | **More indicates domain knowledge** |
+| **Structured Format** | 30% responses | 60% responses | 80% responses | **Higher indicates teaching style** |
+
+#### Quality Indicators
+
+**🟢 Good KD Training (Success Indicators)**
+- Perplexity improvement: >15%
+- Response length increase: >50% 
+- More structured explanations
+- Consistent technical terminology
+- Teacher-like step-by-step reasoning
+
+**🟡 Moderate KD Training (Needs Tuning)**
+- Perplexity improvement: 5-15%
+- Response length increase: 20-50%
+- Some structure improvement
+- Inconsistent terminology
+
+**🔴 Poor KD Training (Needs Retraining)**
+- Perplexity improvement: <5%
+- No significant response changes
+- Same as baseline behavior
+- No knowledge transfer evidence
+
+### Multi-Temperature Comparison Analysis
+
+For comprehensive evaluation, run temperature comparison:
+
+```bash
+# Compare effectiveness at different temperatures
+for temp in 0.1 0.7 1.2; do
+  python test_kd_inference_v2.py \
+    --mode quick \
+    --temperature $temp \
+    --kd_model_path "your/model/path" \
+    --eval_data "your/eval/data.jsonl"
+done
+```
+
+**Expected Temperature Analysis:**
+- **T=0.1**: Minimal differences (models behave similarly)
+- **T=0.7**: Clear efficiency improvements  
+- **T=1.2**: Maximum knowledge transfer demonstration
+
+### Troubleshooting Evaluation Issues
+
+#### Common Problems
+
+1. **"Model path not found"**
+   ```bash
+   # Verify model exists
+   ls -la outputs/experiment/your_experiment/final_model/
+   # Should contain: adapter_config.json, adapter_model.bin
+   ```
+
+2. **"CUDA out of memory during evaluation"**
+   ```bash
+   # Reduce batch size
+   python test_kd_inference_v2.py --mode quick --quick_batch_size 4
+   ```
+
+3. **"Evaluation data not found"**
+   ```bash
+   # Check data path
+   ls -la data/cloud_aiops/cloud_aiops_eval_data.jsonl
+   # Or use pre-generated data
+   --eval_data "outputs/experiment/qwen3_30b_to_8b_ultrabatch_512/sft/sft_eval_data_clean.jsonl"
+   ```
+
+4. **"Temperature confusion"**
+   - **Training temperature (8.0)**: Fixed in KD training config
+   - **Inference temperature (1.2)**: Variable in evaluation scripts
+
+### Best Practices
+
+1. **Always use temperature=1.2** for showcasing KD effects
+2. **Match max_length** to your training configuration  
+3. **Use domain-specific evaluation data** that matches training data
+4. **Run multiple temperature comparisons** for comprehensive analysis
+5. **Save all evaluation results** with timestamps for comparison
+6. **Monitor GPU memory usage** during evaluation
+7. **Use representative sample sizes** (quick=10, medium=50, full=all)
 
 ## ⚙️ Configuration
 

@@ -22,7 +22,7 @@ def set_seed(seed: int = 42):
     torch.backends.cudnn.benchmark = False
 
 
-def setup_logging(log_file: Optional[str] = None, level: str = "INFO"):
+def setup_logging(log_file: Optional[str] = None, level: Union[str, int] = "INFO"):
     """设置日志系统"""
     log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     
@@ -30,8 +30,14 @@ def setup_logging(log_file: Optional[str] = None, level: str = "INFO"):
     if log_file:
         handlers.append(logging.FileHandler(log_file))
     
+    # Handle both string and int level inputs
+    if isinstance(level, str):
+        log_level = getattr(logging, level.upper())
+    else:
+        log_level = level
+    
     logging.basicConfig(
-        level=getattr(logging, level.upper()),
+        level=log_level,
         format=log_format,
         handlers=handlers
     )

@@ -298,12 +298,23 @@ class KDTrainer(Trainer):
             # 强制重新计算确保梯度追踪
             loss = loss.clone().requires_grad_(True)
         
-        # 记录各部分损失
-        self.log(loss_dict)
+        # 记录各部分损失到WandB
+        self.log_metrics(loss_dict)
         
         if return_outputs:
             return loss, student_outputs
         return loss
+    
+    def log_metrics(self, metrics_dict):
+        """记录指标到WandB和控制台"""
+        import wandb
+        
+        # 发送到WandB
+        if wandb.run is not None:
+            wandb.log(metrics_dict)
+        
+        # 打印到控制台用于调试
+        print(metrics_dict)
 
 
 class TeacherLogitsGenerator:
@@ -425,8 +436,17 @@ def run_kd_pipeline(
         "alpha": 0.5,
         "use_online_kd": use_online_kd
     }
+    
+    # 从kwargs中提取temperature和alpha参数
+    if 'temperature' in kwargs:
+        default_kd_args['temperature'] = kwargs['temperature']
+    if 'alpha' in kwargs:
+        default_kd_args['alpha'] = kwargs['alpha']
+    
     if kd_args:
         default_kd_args.update(kd_args)
+    
+    logger.info(f"KD训练开始，训练样本: 待加载, 温度: {default_kd_args['temperature']}, α: {default_kd_args['alpha']}")
     
     # 1. 生成teacher logits（如果使用离线KD）
     if not use_online_kd and generate_teacher_logits:

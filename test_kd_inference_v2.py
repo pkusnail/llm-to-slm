@@ -25,24 +25,45 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class GPUOptimizedTester:
-    def __init__(self, mode="quick", temperature=0.7):
+    def __init__(self, mode="quick", temperature=0.7, student_model="Qwen/Qwen3-8B", 
+                 kd_model_path=None, original_gpu_ids=None, kd_gpu_ids=None,
+                 eval_data_path=None, max_length=512, batch_sizes=None):
         self.mode = mode
         self.temperature = temperature
+        self.student_model = student_model
+        self.kd_model_path = kd_model_path
+        self.eval_data_path = eval_data_path
+        self.max_length = max_length
         self.tokenizer = None
         self.test_samples = []
         
         # GPU优化配置
         self.gpu_count = torch.cuda.device_count()
-        self.batch_sizes = {
-            "quick": min(8, self.gpu_count * 2),     # 激进batch：每GPU 2个样本
-            "medium": min(16, self.gpu_count * 2),   # 中等batch：每GPU 2个样本
-            "full": min(24, self.gpu_count * 3)      # 最大batch：每GPU 3个样本
-        }
+        if batch_sizes:
+            self.batch_sizes = batch_sizes
+        else:
+            self.batch_sizes = {
+                "quick": min(8, self.gpu_count * 2),
+                "medium": min(16, self.gpu_count * 2),
+                "full": min(24, self.gpu_count * 3)
+            }
+        
+        # GPU分配策略
+        if original_gpu_ids is None:
+            self.original_gpu_ids = list(range(min(4, self.gpu_count)))
+        else:
+            self.original_gpu_ids = original_gpu_ids
+            
+        if kd_gpu_ids is None:
+            remaining_gpus = list(range(4, self.gpu_count))
+            self.kd_gpu_ids = remaining_gpus if remaining_gpus else self.original_gpu_ids
+        else:
+            self.kd_gpu_ids = kd_gpu_ids
         
         logger.info(f"检测到 {self.gpu_count} 个GPU")
         logger.info(f"模式: {mode}, 批次大小: {self.batch_sizes[mode]}, 温度: {temperature}")
         
-    def load_eval_data(self, data_path="outputs/experiment/qwen3_30b_to_8b_ultrabatch_512/sft/sft_eval_data_clean.jsonl"):
+    def load_eval_data(self, data_path):
         """加载评估数据"""
         logger.info(f"加载评估数据: {data_path}")
         
@@ -134,7 +155,11 @@ class GPUOptimizedTester:
         
         return model
     
-    def batch_generate(self, model, prompts_batch, max_length=512, temperature=0.7):
+    def batch_generate(self, model, prompts_batch, max_length=None, temperature=None):
+        if max_length is None:
+            max_length = self.max_length
+        if temperature is None:
+            temperature = self.temperature
         """批量生成回复"""
         # 批量编码
         inputs = self.tokenizer(
@@ -214,12 +239,15 @@ class GPUOptimizedTester:
         logger.info(f"{model_name} 评估完成，总用时 {total_time:.2f}s")
         return all_results, total_time
     
-    def run_comparison_test(self):
+    def run_comparison_test(self, eval_data_path=None):
         """运行对比测试"""
         logger.info(f"=== 开始 {self.mode} 模式对比测试 ===")
         
         # 加载数据
-        sample_count = self.load_eval_data()
+        data_path = eval_data_path or self.eval_data_path
+        if not data_path:
+            raise ValueError("必须指定评估数据路径")
+        sample_count = self.load_eval_data(data_path)
         logger.info(f"加载了 {sample_count} 个测试样本")
         
         all_results = []
@@ -229,8 +257,8 @@ class GPUOptimizedTester:
             # 测试原始模型
             logger.info("=== 加载原始8B模型 ===")
             original_model = self.load_model_optimized(
-                "Qwen/Qwen3-8B", 
-                gpu_ids=[0, 1, 2, 3]  # 使用前4个GPU
+                self.student_model, 
+                gpu_ids=self.original_gpu_ids
             )
             
             original_results, original_time = self.evaluate_model_batch(
@@ -245,9 +273,9 @@ class GPUOptimizedTester:
             # 测试KD模型
             logger.info("=== 加载KD训练后模型 ===")
             kd_model = self.load_model_optimized(
-                "Qwen/Qwen3-8B",
-                adapter_path="outputs/experiment/gpu_optimized_kd_fixed/gpu_optimized_kd_20250910_170252/final_model",
-                gpu_ids=[4, 5, 6, 7]  # 使用后4个GPU
+                self.student_model,
+                adapter_path=self.kd_model_path,
+                gpu_ids=self.kd_gpu_ids
             )
             
             kd_results, kd_time = self.evaluate_model_batch(
@@ -319,13 +347,66 @@ def parse_args():
         "--mode", 
         choices=["quick", "medium", "full"],
         default="quick",
-        help="测试模式: quick(10样本,~3分钟), medium(50样本,~15分钟), full(350样本,~2小时)"
+        help="测试模式: quick(10样本), medium(50样本), full(全部样本)"
     )
     parser.add_argument(
         "--temperature",
         type=float,
-        default=0.7,
-        help="推理温度 (0.1=保守, 0.7=平衡, 1.2=创意). 默认0.7"
+        default=1.2,
+        help="推理温度 (0.1=保守, 0.7=平衡, 1.2=创意,最能展示KD效果). 默认1.2"
+    )
+    parser.add_argument(
+        "--student_model",
+        default="Qwen/Qwen3-8B",
+        help="学生模型路径"
+    )
+    parser.add_argument(
+        "--kd_model_path",
+        required=True,
+        help="KD训练后LoRA适配器路径"
+    )
+    parser.add_argument(
+        "--eval_data",
+        required=True,
+        help="评估数据文件路径"
+    )
+    parser.add_argument(
+        "--max_length",
+        type=int,
+        default=1536,
+        help="最大生成长度"
+    )
+    parser.add_argument(
+        "--original_gpu_ids",
+        type=int,
+        nargs="+",
+        default=[0, 1, 2, 3],
+        help="原始模型使用的GPU ID列表"
+    )
+    parser.add_argument(
+        "--kd_gpu_ids",
+        type=int,
+        nargs="+",
+        default=[4, 5, 6, 7],
+        help="KD模型使用的GPU ID列表"
+    )
+    parser.add_argument(
+        "--quick_batch_size",
+        type=int,
+        default=8,
+        help="quick模式批次大小"
+    )
+    parser.add_argument(
+        "--medium_batch_size",
+        type=int,
+        default=16,
+        help="medium模式批次大小"
+    )
+    parser.add_argument(
+        "--full_batch_size",
+        type=int,
+        default=24,
+        help="full模式批次大小"
     )
     return parser.parse_args()
 
@@ -334,13 +415,33 @@ def main():
     args = parse_args()
     
     print(f"\n🚀 启动KD模型对比测试 - {args.mode.upper()}模式")
+    print(f"🌡️ 推理温度: {args.temperature} (1.2最能展示KD效果)")
+    print(f"💾 KD模型路径: {args.kd_model_path}")
+    print(f"📁 评估数据: {args.eval_data}")
     
     # 设置随机种子
     random.seed(42)
     torch.manual_seed(42)
     
+    # 构建批次大小配置
+    batch_sizes = {
+        "quick": args.quick_batch_size,
+        "medium": args.medium_batch_size,
+        "full": args.full_batch_size
+    }
+    
     try:
-        tester = GPUOptimizedTester(mode=args.mode, temperature=args.temperature)
+        tester = GPUOptimizedTester(
+            mode=args.mode, 
+            temperature=args.temperature,
+            student_model=args.student_model,
+            kd_model_path=args.kd_model_path,
+            original_gpu_ids=args.original_gpu_ids,
+            kd_gpu_ids=args.kd_gpu_ids,
+            eval_data_path=args.eval_data,
+            max_length=args.max_length,
+            batch_sizes=batch_sizes
+        )
         results = tester.run_comparison_test()
         
         print(f"\n✅ 测试成功完成！")

@@ -59,7 +59,7 @@ def load_teacher_model(teacher_model="Qwen/Qwen3-30B-A3B-Instruct-2507"):
     )
     return model, tokenizer
 
-def evaluate_perplexity(model, tokenizer, test_texts, max_length=512):
+def evaluate_perplexity(model, tokenizer, test_texts, max_length=1536):
     """Evaluate model perplexity on test texts"""
     model.eval()
     total_loss = 0
@@ -80,14 +80,14 @@ def evaluate_perplexity(model, tokenizer, test_texts, max_length=512):
     perplexity = torch.exp(torch.tensor(avg_loss)).item()
     return perplexity, avg_loss
 
-def evaluate_generation_quality(model, tokenizer, prompts, max_new_tokens=256):
+def evaluate_generation_quality(model, tokenizer, prompts, max_new_tokens=512, temperature=0.7):
     """Evaluate generation quality"""
     model.eval()
     results = []
     
     generation_config = {
         "max_new_tokens": max_new_tokens,
-        "temperature": 0.7,
+        "temperature": temperature,
         "top_p": 0.9,
         "do_sample": True,
         "pad_token_id": tokenizer.eos_token_id
@@ -109,7 +109,7 @@ def evaluate_generation_quality(model, tokenizer, prompts, max_new_tokens=256):
     
     return results
 
-def load_evaluation_data(data_path="data/processed/eval_dataset.jsonl"):
+def load_evaluation_data(data_path):
     """Load evaluation dataset"""
     eval_data = []
     try:
@@ -154,9 +154,12 @@ def main():
     parser.add_argument("--model_path", required=True, help="Path to the distilled model")
     parser.add_argument("--teacher_model", default="Qwen/Qwen3-30B-A3B-Instruct-2507", help="Teacher model name")
     parser.add_argument("--student_base", default="Qwen/Qwen3-8B", help="Student base model name")
-    parser.add_argument("--eval_data", default="data/processed/eval_dataset.jsonl", help="Evaluation data path")
+    parser.add_argument("--eval_data", required=True, help="Evaluation data path")
     parser.add_argument("--output_dir", default="outputs/evaluation", help="Output directory for results")
     parser.add_argument("--sample_size", type=int, default=50, help="Number of samples to evaluate")
+    parser.add_argument("--max_length", type=int, default=1536, help="Maximum sequence length for evaluation")
+    parser.add_argument("--max_new_tokens", type=int, default=512, help="Maximum new tokens to generate")
+    parser.add_argument("--temperature", type=float, default=1.2, help="Generation temperature (1.2 best shows KD effects)")
     
     args = parser.parse_args()
     
@@ -193,14 +196,14 @@ def main():
         
         # Perplexity evaluation
         if texts_for_perplexity:
-            student_ppl, student_loss = evaluate_perplexity(student_model, student_tokenizer, texts_for_perplexity[:10])
+            student_ppl, student_loss = evaluate_perplexity(student_model, student_tokenizer, texts_for_perplexity[:10], args.max_length)
             logger.info(f"Student Perplexity: {student_ppl:.2f} (Loss: {student_loss:.4f})")
         else:
             student_ppl, student_loss = None, None
             logger.warning("No reference texts found for perplexity evaluation")
         
         # Generation evaluation
-        student_generations = evaluate_generation_quality(student_model, student_tokenizer, prompts[:5])
+        student_generations = evaluate_generation_quality(student_model, student_tokenizer, prompts[:5], args.max_new_tokens, args.temperature)
         
         results["results"]["student"] = {
             "perplexity": student_ppl,
@@ -222,12 +225,12 @@ def main():
         baseline_model, baseline_tokenizer = load_model_and_tokenizer("", args.student_base)  # No LoRA adapters
         
         if texts_for_perplexity:
-            baseline_ppl, baseline_loss = evaluate_perplexity(baseline_model, baseline_tokenizer, texts_for_perplexity[:10])
+            baseline_ppl, baseline_loss = evaluate_perplexity(baseline_model, baseline_tokenizer, texts_for_perplexity[:10], args.max_length)
             logger.info(f"Baseline Perplexity: {baseline_ppl:.2f} (Loss: {baseline_loss:.4f})")
         else:
             baseline_ppl, baseline_loss = None, None
         
-        baseline_generations = evaluate_generation_quality(baseline_model, baseline_tokenizer, prompts[:5])
+        baseline_generations = evaluate_generation_quality(baseline_model, baseline_tokenizer, prompts[:5], args.max_new_tokens, args.temperature)
         
         results["results"]["baseline"] = {
             "perplexity": baseline_ppl,
@@ -249,12 +252,12 @@ def main():
             teacher_model, teacher_tokenizer = load_teacher_model(args.teacher_model)
             
             if texts_for_perplexity:
-                teacher_ppl, teacher_loss = evaluate_perplexity(teacher_model, teacher_tokenizer, texts_for_perplexity[:5])
+                teacher_ppl, teacher_loss = evaluate_perplexity(teacher_model, teacher_tokenizer, texts_for_perplexity[:5], args.max_length)
                 logger.info(f"Teacher Perplexity: {teacher_ppl:.2f} (Loss: {teacher_loss:.4f})")
             else:
                 teacher_ppl, teacher_loss = None, None
             
-            teacher_generations = evaluate_generation_quality(teacher_model, teacher_tokenizer, prompts[:3])
+            teacher_generations = evaluate_generation_quality(teacher_model, teacher_tokenizer, prompts[:3], args.max_new_tokens, args.temperature)
             
             results["results"]["teacher"] = {
                 "perplexity": teacher_ppl,
