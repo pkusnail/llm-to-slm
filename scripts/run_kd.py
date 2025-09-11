@@ -21,6 +21,14 @@ import logging
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
+# wandb集成
+try:
+    import wandb
+    WANDB_AVAILABLE = True
+except ImportError:
+    WANDB_AVAILABLE = False
+    print("⚠️ wandb未安装，将跳过实验跟踪。安装命令: pip install wandb")
+
 console = Console()
 logger = logging.getLogger(__name__)
 
@@ -57,7 +65,12 @@ def run_kd_training(
     logging_steps: int = 50,
     warmup_ratio: float = 0.1,
     generate_teacher_logits: bool = False,
-    logits_batch_size: int = 2
+    logits_batch_size: int = 2,
+    
+    # wandb参数
+    use_wandb: bool = True,
+    wandb_project: str = "qwen3-kd-experiments",
+    wandb_tags: list = None
 ):
     """运行KD训练"""
     
@@ -72,6 +85,37 @@ def run_kd_training(
     console.print(f"📁 输出目录: {output_path}")
     console.print(f"👨‍🏫 Teacher: {teacher_model}")
     console.print(f"🎓 Student: {student_model}")
+    
+    # 初始化wandb
+    wandb_run = None
+    if use_wandb and WANDB_AVAILABLE:
+        try:
+            wandb_run = wandb.init(
+                project=wandb_project,
+                name=f"{experiment_name}_{time.strftime('%m%d_%H%M')}",
+                tags=wandb_tags or ["knowledge-distillation", "qwen3", "corrected-loss"],
+                config={
+                    "experiment_name": experiment_name,
+                    "teacher_model": teacher_model,
+                    "student_model": student_model,
+                    "kd_epochs": kd_epochs,
+                    "kd_batch_size": kd_batch_size,
+                    "kd_lr": kd_lr,
+                    "kd_grad_accum": kd_grad_accum,
+                    "temperature": temperature,
+                    "alpha": alpha,
+                    "use_online_kd": use_online_kd,
+                    "max_length": max_length,
+                    "use_bf16": use_bf16,
+                    "gradient_checkpointing": gradient_checkpointing,
+                    "loss_fix": "corrected_weights",
+                    "formula": f"loss = {1-alpha:.1f}*CE + {alpha:.1f}*KL"
+                }
+            )
+            console.print(f"📊 wandb已初始化: {wandb_run.url}")
+        except Exception as e:
+            console.print(f"⚠️ wandb初始化失败: {e}，继续训练...")
+            wandb_run = None
     
     # 显示配置
     console.print("\n📋 训练配置:")
@@ -163,7 +207,7 @@ def run_kd_training(
             "save_strategy": "steps",
             "load_best_model_at_end": True if eval_data else False,
             "metric_for_best_model": "eval_loss" if eval_data else None,
-            "report_to": "none"
+            "report_to": "wandb" if (use_wandb and WANDB_AVAILABLE and wandb_run) else "none"
         }
         
         # KD参数
@@ -218,7 +262,20 @@ def run_kd_training(
         with open(output_path / "kd_results.json", "w", encoding="utf-8") as f:
             json.dump(result, f, ensure_ascii=False, indent=2)
         
-        cleanup_cache()
+        # 记录最终指标到wandb (但不关闭，在finally中关闭)
+        if wandb_run:
+            try:
+                if training_history:
+                    final_logs = training_history[-1]
+                    if isinstance(final_logs, dict):
+                        wandb_run.log({
+                            "final_total_loss": final_logs.get("total_loss", 0),
+                            "final_ce_loss": final_logs.get("ce_loss", 0),
+                            "final_kl_loss": final_logs.get("kl_loss", 0),
+                            "execution_time": result['execution_time']
+                        })
+            except Exception as e:
+                console.print(f"⚠️ wandb记录最终指标时出错: {e}")
         
         console.print(f"\n🎉 KD蒸馏训练完成!")
         console.print(f"⏱️ 训练用时: {result['execution_time']:.1f}秒")
@@ -228,6 +285,7 @@ def run_kd_training(
         console.print(f"\n💡 下一步建议:")
         console.print(f"   1. 运行评估: python scripts/run_eval.py --model {output_path / 'final_model'}")
         console.print(f"   2. 对比模型: 比较SFT模型和KD模型的性能差异")
+        console.print(f"   3. 查看wandb: {wandb_run.url if wandb_run else '未启用wandb'}")
         
         return True
         
@@ -252,6 +310,22 @@ def run_kd_training(
             console.print("   - 验证数据包含teacher_response字段")
         
         return False
+        
+    finally:
+        # 确保wandb正确关闭 (无论训练成功还是失败)
+        if wandb_run:
+            try:
+                console.print("🔄 正在关闭wandb...")
+                wandb_run.finish()
+                console.print("📊 wandb已安全关闭")
+            except Exception as e:
+                console.print(f"⚠️ wandb关闭时出错: {e}")
+        
+        # 清理GPU缓存
+        try:
+            cleanup_cache()
+        except Exception as e:
+            console.print(f"⚠️ GPU缓存清理出错: {e}")
 
 
 def main():
@@ -361,6 +435,15 @@ def main():
                               help="日志间隔")
     advanced_group.add_argument("--warmup_ratio", type=float, default=0.1,
                               help="学习率预热比例")
+    
+    # === wandb参数 ===
+    wandb_group = parser.add_argument_group('实验跟踪')
+    wandb_group.add_argument("--use_wandb", type=bool, default=True,
+                           help="启用wandb实验跟踪")
+    wandb_group.add_argument("--wandb_project", type=str, default="qwen3-kd-experiments",
+                           help="wandb项目名称")
+    wandb_group.add_argument("--wandb_tags", type=str, nargs="*",
+                           help="wandb标签 (多个标签用空格分隔)")
     
     args = parser.parse_args()
     
